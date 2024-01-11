@@ -3,12 +3,11 @@ import { prismaClient } from '$lib/server/prisma'
 import { error, fail } from '@sveltejs/kit'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
-	const session = await locals.auth.validate()
-	if (!session) {
+	if (!locals.user) {
 		throw error(401, 'Unauthorized')
 	}
 
-	const getArticle = async (userId: string) => {
+	const getArticle = async () => {
 		const article = await prismaClient.article.findUnique({
 			where: {
 				id: Number(params.articleId)
@@ -17,7 +16,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		if (!article) {
 			throw error(404, 'Article not found')
 		}
-		if (article.userId !== session.user.userId) {
+		if (article.userId !== locals.user.userId) {
 			throw error(403, 'Unauthorized')
 		}
 
@@ -25,14 +24,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	}
 
 	return {
-		article: getArticle(session.user.userId)
+		article: await getArticle()
 	}
 }
 
 export const actions: Actions = {
 	updateArticle: async ({ request, params, locals }) => {
-		const { session, user } = await locals.auth.validateUser()
-		if (!session || !user) {
+		if (!locals.user) {
 			throw error(401, 'Unauthorized')
 		}
 
@@ -48,7 +46,7 @@ export const actions: Actions = {
 				}
 			})
 
-			if (article.userId !== user.userId) {
+			if (article.userId !== locals.user.userId) {
 				throw error(403, 'Forbidden to edit this article.')
 			}
 			await prismaClient.article.update({
